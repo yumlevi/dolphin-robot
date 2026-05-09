@@ -6,7 +6,7 @@ import sys
 from cryptography.fernet import InvalidToken
 
 from homeassistant.config_entries import STORAGE_VERSION, ConfigEntry
-from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.const import CONF_NAME, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import translation
 from homeassistant.helpers.entity import DeviceInfo
@@ -23,10 +23,11 @@ from ..common.consts import (
     DEFAULT_NAME,
     DOMAIN,
     INVALID_TOKEN_SECTION,
-    STORAGE_DATA_API_TOKEN,
-    STORAGE_DATA_AWS_TOKEN,
+    STORAGE_DATA_ID_TOKEN,
+    STORAGE_DATA_ID_TOKEN_EXPIRES_AT,
     STORAGE_DATA_LOCATING,
     STORAGE_DATA_MOTOR_UNIT_SERIAL,
+    STORAGE_DATA_REFRESH_TOKEN,
     STORAGE_DATA_SERIAL_NUMBER,
     TOKEN_PARAMS,
 )
@@ -101,16 +102,16 @@ class ConfigManager:
         return is_locating
 
     @property
-    def api_token(self) -> str | None:
-        api_token = self._data.get(STORAGE_DATA_API_TOKEN)
-
-        return api_token
+    def id_token(self) -> str | None:
+        return self._data.get(STORAGE_DATA_ID_TOKEN)
 
     @property
-    def aws_token(self) -> str | None:
-        aws_token = self._data.get(STORAGE_DATA_AWS_TOKEN)
+    def refresh_token(self) -> str | None:
+        return self._data.get(STORAGE_DATA_REFRESH_TOKEN)
 
-        return aws_token
+    @property
+    def id_token_expires_at(self) -> float | None:
+        return self._data.get(STORAGE_DATA_ID_TOKEN_EXPIRES_AT)
 
     @property
     def serial_number(self) -> str | None:
@@ -237,14 +238,21 @@ class ConfigManager:
 
         await self._save()
 
-    async def update_login_details(self, api_token: str, serial_number: str):
-        self._data[STORAGE_DATA_API_TOKEN] = api_token
-        self._data[STORAGE_DATA_SERIAL_NUMBER] = serial_number
+    async def update_tokens(
+        self,
+        id_token: str,
+        refresh_token: str | None,
+        expires_at: float,
+    ):
+        self._data[STORAGE_DATA_ID_TOKEN] = id_token
+        if refresh_token is not None:
+            self._data[STORAGE_DATA_REFRESH_TOKEN] = refresh_token
+        self._data[STORAGE_DATA_ID_TOKEN_EXPIRES_AT] = expires_at
 
         await self._save()
 
-    async def update_aws_token(self, aws_token: str | None):
-        self._data[STORAGE_DATA_AWS_TOKEN] = aws_token
+    async def update_serial_number(self, serial_number: str):
+        self._data[STORAGE_DATA_SERIAL_NUMBER] = serial_number
 
         await self._save()
 
@@ -353,10 +361,9 @@ class ConfigManager:
             for key in self._data:
                 stored_value = entry_data.get(key)
 
-                if key in [CONF_PASSWORD, CONF_USERNAME]:
-                    entry_data.pop(CONF_USERNAME)
-
+                if key == CONF_USERNAME:
                     if stored_value is not None:
+                        entry_data.pop(CONF_USERNAME)
                         should_save = True
 
                 else:

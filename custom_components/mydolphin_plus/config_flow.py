@@ -30,10 +30,14 @@ class DomainFlowHandler(config_entries.ConfigFlow):
         return DomainOptionsFlowHandler(config_entry)
 
     async def async_step_user(self, user_input=None):
-        """Handle a flow start."""
+        """Handle a flow start (email step)."""
         flow_manager = IntegrationFlowManager(self.hass, self)
+        return await flow_manager.async_step_user(user_input)
 
-        return await flow_manager.async_step(user_input)
+    async def async_step_otp(self, user_input=None):
+        """Handle the OTP confirmation step."""
+        flow_manager = IntegrationFlowManager(self.hass, self)
+        return await flow_manager.async_step_otp(user_input)
 
 
 class DomainOptionsFlowHandler(config_entries.OptionsFlow):
@@ -44,11 +48,17 @@ class DomainOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry):
         """Initialize domain options flow."""
         super().__init__()
-
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
-        """Manage the domain options."""
-        flow_manager = IntegrationFlowManager(self.hass, self, self._config_entry)
+        """Manage the domain options (re-trigger OTP login)."""
+        flow_manager = IntegrationFlowManager(
+            self.hass, self, self._config_entry
+        )
+        return await flow_manager.async_step_user(user_input)
 
-        return await flow_manager.async_step(user_input)
+    async def async_step_otp(self, user_input=None):
+        flow_manager = IntegrationFlowManager(
+            self.hass, self, self._config_entry
+        )
+        return await flow_manager.async_step_otp(user_input)
